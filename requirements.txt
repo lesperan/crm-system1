@@ -1,0 +1,6 @@
+streamlit>=1.29.0
+pandas>=1.5.0
+openpyxl>=3.0.0
+xlsxwriter>=3.0.0
+uuid
+sqlite3
