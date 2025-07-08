@@ -34,7 +34,8 @@ def show_page(conn):
     """고객 연락처 관리 페이지 표시"""
     st.header("👥 고객 연락처 관리")
     
-    tab1, tab2, tab3, tab4 = st.tabs(["엑셀 업로드", "직접 입력", "현재 연락처 목록", "🛠️ 관리"])
+    # 4개 탭 생성
+    tab1, tab2, tab3, tab4 = st.tabs(["📤 엑셀 업로드", "✏️ 직접 입력", "📋 현재 연락처 목록", "🛠️ 관리"])
     
     with tab1:
         show_upload_section(conn)
@@ -316,3 +317,60 @@ def show_current_contacts(conn):
         display_data_with_stats(contacts_df, "현재 저장된 연락처 목록", "contacts")
     except Exception as e:
         st.error(f"연락처 데이터 조회 오류: {str(e)}")
+
+
+def show_management_section(conn):
+    """관리 섹션 - 연락처 삭제 기능"""
+    st.subheader("🛠️ 연락처 데이터 관리")
+    
+    # 현재 상태 표시
+    try:
+        total_contacts = conn.execute("SELECT COUNT(*) FROM customer_contacts").fetchone()[0]
+        st.metric("현재 저장된 연락처 수", total_contacts)
+        
+        if total_contacts > 0:
+            # 최근 5개 연락처 미리보기
+            recent_contacts = pd.read_sql_query('''
+                SELECT cc.customer_name as 고객명, c.company_name as 기업명, cc.phone as 전화
+                FROM customer_contacts cc
+                JOIN companies c ON cc.company_code = c.company_code
+                ORDER BY cc.created_at DESC
+                LIMIT 5
+            ''', conn)
+            
+            st.write("**최근 연락처 5개:**")
+            st.dataframe(recent_contacts, use_container_width=True)
+        
+    except Exception as e:
+        st.error(f"데이터 조회 오류: {str(e)}")
+    
+    st.markdown("---")
+    
+    # 위험한 작업 섹션
+    st.subheader("⚠️ 위험한 작업")
+    st.warning("아래 작업들은 되돌릴 수 없습니다. 신중하게 실행하세요.")
+    
+    # 모든 연락처 삭제
+    if st.button("🗑️ 모든 연락처 삭제", type="secondary"):
+        if 'confirm_delete_contacts' not in st.session_state:
+            st.session_state.confirm_delete_contacts = False
+        
+        if not st.session_state.confirm_delete_contacts:
+            st.session_state.confirm_delete_contacts = True
+            st.error("⚠️ 정말로 삭제하시겠습니까? 버튼을 한 번 더 클릭하세요!")
+            st.rerun()
+        else:
+            try:
+                deleted_count = conn.execute("SELECT COUNT(*) FROM customer_contacts").fetchone()[0]
+                conn.execute("DELETE FROM customer_contacts")
+                conn.commit()
+                st.success(f"✅ {deleted_count}개의 연락처가 모두 삭제되었습니다!")
+                st.session_state.confirm_delete_contacts = False
+                clear_all_caches()
+                st.rerun()
+            except Exception as e:
+                st.error(f"삭제 실패: {str(e)}")
+    
+    # 초기화 후 안내
+    if total_contacts == 0:
+        st.info("📝 **다음 단계:** '엑셀 업로드' 탭에서 올바른 매핑으로 연락처를 다시 업로드하세요.")
